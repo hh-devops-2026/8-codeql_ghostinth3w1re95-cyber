@@ -8,14 +8,51 @@ on:
 
 jobs:
   analyze:
-    # Use ubuntu-latest for the analysis job
-    # Define permissions for the job
-    # Define language to be analyzed
     name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
 
   docker:
     name: Docker Build & Run
     runs-on: ubuntu-latest
     needs: analyze
 
-    # Define steps to build and run the Docker container
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --tag go-web-server .
+
+      - name: Run container and test endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          container_id="$(docker run --detach --publish 8080:8080 go-web-server)"
+          cleanup() {
+            docker rm --force "$container_id" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          curl --fail --silent --show-error \
+            --retry 10 --retry-delay 2 --retry-connrefused \
+            "http://127.0.0.1:8080/readfile?file=hello.txt" |
+            grep --fixed-strings --line-regexp "Hello World"
