@@ -52,7 +52,11 @@ jobs:
           }
           trap cleanup EXIT
 
-          curl --fail --silent --show-error \
+          if ! curl --fail --silent --show-error \
             --retry 10 --retry-delay 2 --retry-connrefused \
-            "http://127.0.0.1:8080/readfile?file=hello.txt" |
-            grep --fixed-strings --line-regexp "Hello World"
+            "http://127.0.0.1:8080/readfile?file=safe-files/hello.txt" |
+            grep --fixed-strings --line-regexp "Hello World"; then
+            docker ps --all
+            docker logs "$container_id"
+            exit 1
+          fi
